@@ -1,179 +1,63 @@
 <script setup>
-import { ref } from 'vue'
-// 引入各个功能组件
-import TextDetection from './components/TextDetection.vue'
-import ImageDetection from './components/ImageDetection.vue'
-import ImageTextDetection from './components/ImageTextDetection.vue'
-import HallucinationDetection from './components/HallucinationDetection.vue'
-import SycophancyDetection from './components/SycophancyDetection.vue'
-import TextWatermark from './components/TextWatermark.vue'
-import AuditPanel from './components/safety/AuditPanel.vue'
-import KBBuild from './components/safety/KBBuild.vue'
-import KBBrowser from './components/safety/KBBrowser.vue'
-import KBAdd from './components/safety/KBAdd.vue'
-import KBEdit from './components/safety/KBEdit.vue'
-
-import { onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import PlatformIcon from './components/ui/PlatformIcon.vue'
+const OverviewView = defineAsyncComponent(() => import('./views/OverviewView.vue'))
+const WorkspaceView = defineAsyncComponent(() => import('./views/WorkspaceView.vue'))
+const KnowledgeView = defineAsyncComponent(() => import('./views/KnowledgeView.vue'))
+import { primaryPages, detectionTools, knowledgeTabs, parseRoute } from './navigation/pages'
 import { useSystemStore } from './stores/system'
 import { useKBStore } from './stores/kb'
 
 const systemStore = useSystemStore()
 const kbStore = useKBStore()
-
-const editDialogRef = ref(null)
-
-const openEdit = (row) => {
-  editDialogRef.value?.open(row)
+const route = ref(parseRoute(window.location.hash))
+const sidebarOpen = ref(false)
+const loading = ref(true)
+const helpOpen = ref(false)
+const currentPage = computed(() => primaryPages.find(page => page.id === route.value.page))
+const currentSection = computed(() => route.value.page === 'workspace' ? detectionTools.find(tool => tool.id === route.value.section)?.name : route.value.page === 'knowledge' ? knowledgeTabs.find(tab => tab.id === route.value.section)?.name : '')
+const syncRoute = () => {
+  route.value = parseRoute(window.location.hash)
+  sidebarOpen.value = false
+  document.title = (currentSection.value || currentPage.value.name) + ' · 大模型检测平台'
+  window.scrollTo({ top: 0, behavior: 'instant' })
 }
+const handleEscape = (event) => { if (event.key === 'Escape') sidebarOpen.value = false }
 
 onMounted(async () => {
-  await systemStore.fetchConfigState()
-  await kbStore.loadAll()
-})
-
-// 当前激活的菜单索引，默认选中 '1-3' (图文检测)
-const activeIndex = ref('1-3')
-// 当前显示的视图名称，用于标题显示和组件切换
-const currentView = ref('图文检测')
-
-/**
- * 处理菜单选择事件
- * 根据选中的菜单项索引更新当前视图
- * @param {string} key - 选中的菜单项 index
- * @param {string[]} keyPath - 菜单项的路径数组
- */
-const handleSelect = (key, keyPath) => {
-  // 定义菜单索引到视图名称的映射关系
-  const viewMap = {
-    '1-3': '图文检测',
-    '1-4': '幻觉检测',
-    '1-5': '谄媚检测',
-    '2': '文本水印',
-    '3': '历史记录',
-    '4-1': '内容安全审核',
-    '4-2': '导入知识库',
-    '4-3': '知识库列表',
-    '4-4': '新增知识'
+  window.addEventListener('hashchange', syncRoute)
+  window.addEventListener('keydown', handleEscape)
+  syncRoute()
+  // 保持原有的配置与知识库加载顺序，以及原有接口调用。
+  try {
+    await systemStore.fetchConfigState()
+    await kbStore.loadAll()
+  } finally {
+    loading.value = false
   }
-  // 更新当前视图，如果未匹配到则默认为 '图文检测'
-  currentView.value = viewMap[key] || '图文检测'
-}
+})
+onUnmounted(() => {
+  window.removeEventListener('hashchange', syncRoute)
+  window.removeEventListener('keydown', handleEscape)
+})
 </script>
 
 <template>
-  <div class="common-layout">
-    <el-container class="layout-container">
-      <!-- 顶部 Header 区域 -->
-      <el-header class="header">
-        <div class="logo">大模型检测平台</div>
-        <div class="user-info">Admin</div>
-      </el-header>
-      
-      <el-container>
-        <!-- 左侧侧边栏导航区域 -->
-        <el-aside width="200px" class="aside">
-          <el-menu
-            :default-active="activeIndex"
-            class="el-menu-vertical-demo"
-            @select="handleSelect"
-          >
-            <!-- 一级菜单：价值观检测 -->
-            <el-sub-menu index="1">
-              <template #title>
-                <span>价值观检测</span>
-              </template>
-              <el-menu-item index="1-3">图文</el-menu-item>
-              <el-menu-item index="1-4">幻觉</el-menu-item>
-              <el-menu-item index="1-5">谄媚</el-menu-item>
-            </el-sub-menu>
-            
-            <!-- 一级菜单：文本水印 -->
-            <el-menu-item index="2">
-              <span>文本水印</span>
-            </el-menu-item>
-            
-            <!-- 一级菜单：历史记录 -->
-            <el-menu-item index="3">
-              <span>历史记录</span>
-            </el-menu-item>
-
-            <!-- 一级菜单：内容安全审核 -->
-            <el-sub-menu index="4">
-              <template #title>
-                <span>涉政内容审核</span>
-              </template>
-              <el-menu-item index="4-1">内容安全审核</el-menu-item>
-              <el-menu-item index="4-2">导入知识库</el-menu-item>
-              <el-menu-item index="4-3">知识库管理</el-menu-item>
-              <el-menu-item index="4-4">新增知识条目</el-menu-item>
-            </el-sub-menu>
-          </el-menu>
-        </el-aside>
-        
-        <!-- 右侧主要内容区域 -->
-        <el-main class="main">
-          <div class="content-wrapper">
-            <!-- 动态显示标题，仅在非检测类视图显示，因为检测组件内部自带标题或不需要标题 -->
-            <h2 v-if="currentView === '历史记录'">{{ currentView }}</h2>
-            
-            <!-- 根据 currentView 动态渲染对应的组件 -->
-            <TextDetection v-if="currentView === '文本检测'" />
-            <ImageDetection v-else-if="currentView === '图片检测'" />
-            <HallucinationDetection v-else-if="currentView === '幻觉检测'" />
-            <SycophancyDetection v-else-if="currentView === '谄媚检测'" />
-            <ImageTextDetection v-else-if="currentView === '图文检测'" />
-            <TextWatermark v-else-if="currentView === '文本水印'" />
-            <AuditPanel v-else-if="currentView === '内容安全审核'" />
-            <KBBuild v-else-if="currentView === '导入知识库'" />
-            <KBBrowser v-else-if="currentView === '知识库列表'" @edit="openEdit" />
-            <KBAdd v-else-if="currentView === '新增知识'" />
-            
-            <!-- 默认空状态，用于未开发的功能（如历史记录） -->
-            <el-empty v-else :description="currentView + ' 功能区域'" />
-            
-            <KBEdit ref="editDialogRef" />
-          </div>
-        </el-main>
-      </el-container>
-    </el-container>
+  <div class="platform-shell">
+    <button v-if="sidebarOpen" class="sidebar-scrim" aria-label="关闭导航" @click="sidebarOpen = false"></button>
+    <aside class="sidebar" :class="{ 'is-open': sidebarOpen }">
+      <a class="brand" href="#/overview"><span class="brand-mark"><PlatformIcon name="shield" /></span><span><strong>大模型检测平台</strong><small>AI SAFETY PLATFORM</small></span></a>
+      <div class="sidebar-workspace"><span class="workspace-symbol">S</span><div><strong>安全评估空间</strong><small>Safety workspace</small></div><span class="workspace-dot"></span></div>
+      <div class="nav-label">工作空间 <span>WORKSPACE</span></div>
+      <nav class="primary-nav" aria-label="主导航"><a v-for="page in primaryPages" :key="page.id" :href="page.href" :class="{ active: route.page === page.id }" :aria-current="route.page === page.id ? 'page' : undefined"><PlatformIcon :name="page.icon" /><span>{{ page.name }}</span><PlatformIcon v-if="route.page === page.id" class="nav-arrow" name="chevron" /></a></nav>
+      <div class="nav-label tools-label">快捷工具 <span>TOOLS</span></div>
+      <nav class="shortcut-nav" aria-label="快捷工具"><a v-for="tool in detectionTools" :key="tool.id" :href="'#/workspace/' + tool.id" :class="{ selected: route.page === 'workspace' && route.section === tool.id }"><PlatformIcon :name="tool.icon" />{{ tool.name }}</a></nav>
+      <div class="sidebar-bottom"><div class="sidebar-tip"><PlatformIcon name="spark" /><h3>为可信 AI 而构建</h3><p>用清晰的评估，守护每一份生成内容。</p><a href="#/workspace/multimodal">开启检测 <PlatformIcon name="arrow" /></a></div><button class="sidebar-help" @click="helpOpen = true"><PlatformIcon name="help" />使用指南<PlatformIcon name="chevron" /></button><div class="sidebar-version"><span class="workspace-dot"></span>AI SAFETY · 工作空间</div></div>
+    </aside>
+    <div class="main-shell">
+      <header class="topbar"><div class="breadcrumb"><button class="mobile-menu icon-button" aria-label="打开导航" :aria-expanded="sidebarOpen" @click="sidebarOpen = !sidebarOpen"><PlatformIcon name="menu" /></button><span class="breadcrumb-root">工作空间</span><PlatformIcon name="chevron" /><span>{{ currentPage.name }}</span><template v-if="currentSection"><PlatformIcon name="chevron" /><span class="breadcrumb-section">{{ currentSection }}</span></template></div><div class="topbar-right"><span class="topbar-label">AI 内容安全评估</span><span class="topbar-divider"></span><span class="avatar">A</span><div class="user-label"><strong>Admin</strong><small>管理员</small></div></div></header>
+      <main class="main-content" id="main-content"><OverviewView v-if="route.page === 'overview'" :loading="loading" /><WorkspaceView v-else-if="route.page === 'workspace'" :section="route.section" /><KnowledgeView v-else :section="route.section" /><footer class="page-footer"><span>大模型检测平台 <span class="footer-divider">/</span> 让智能更值得信任</span><span>AI SAFETY PLATFORM</span></footer></main>
+    </div>
+    <el-dialog v-model="helpOpen" title="使用指南" width="min(560px, 92vw)" class="guide-dialog"><div class="help-content"><p>通过左侧导航，在三个页面之间切换：</p><ul><li><strong>平台概览：</strong>查看平台能力、已加载的知识与模型配置，快速进入检测场景。</li><li><strong>检测工作台：</strong>选择图文检测、幻觉检测、谄媚检测、文本水印或内容安全审核，提交内容后查看结果。</li><li><strong>知识库：</strong>搜索和编辑知识条目，新增记录或导入 CSV 数据集。</li></ul><p>图文检测支持 Enter 提交、Ctrl + Enter 换行。各检测工具沿用现有服务进行分析。</p></div><template #footer><el-button type="primary" @click="helpOpen = false">知道了</el-button></template></el-dialog>
   </div>
 </template>
-
-<style scoped>
-.layout-container {
-  height: 100vh;
-  width: 100vw;
-}
-
-.header {
-  background-color: #409EFF;
-  color: white;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-
-.logo {
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.aside {
-  background-color: #fff;
-  border-right: 1px solid #dcdfe6;
-}
-
-.main {
-  background-color: #f0f2f5;
-  padding: 20px;
-}
-
-.content-wrapper {
-  background: white;
-  padding: 20px;
-  border-radius: 4px;
-  height: 100%;
-  box-sizing: border-box;
-}
-</style>

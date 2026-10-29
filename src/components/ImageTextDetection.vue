@@ -149,103 +149,20 @@ const handleDetect = async () => {
 </script>
 
 <template>
-  <div class="image-text-detection-container">
-    <!-- 上部分：输入区域 -->
-    <el-card class="input-card" shadow="hover">
-      <template #header>
-        <div class="card-header">
-          <span class="title"><el-icon><EditPen /></el-icon> 图文检测</span>
-        </div>
-      </template>
-      
+  <div class="image-text-detection-container enriched-detection">
+    <el-card class="input-card" shadow="never">
+      <template #header><div class="card-header"><span class="title"><span class="panel-step">01</span>待检测内容</span><span class="request-status" :class="{ busy: isDetecting }"><span></span>{{ isDetecting ? '分析中' : showResult ? '已生成报告' : '等待提交' }}</span></div></template>
       <div class="input-content">
-        <!-- 文本输入 -->
-        <el-input
-          ref="textareaRef"
-          v-model="textContent"
-          :rows="6"
-          type="textarea"
-          placeholder="请输入需要检测的文本内容... (Enter 立即检测, Ctrl+Enter 换行)"
-          resize="none"
-          class="text-area"
-          @keydown.enter.exact.prevent="handleDetect"
-          @keydown.ctrl.enter.prevent="insertNewLine"
-        />
-        
-        <!-- 图片上传与按钮区域 -->
-        <div class="action-area">
-          <div class="upload-wrapper">
-            <el-upload
-              v-model:file-list="fileList"
-              action="#"
-              list-type="picture-card"
-              :auto-upload="false"
-              :on-preview="handlePictureCardPreview"
-              :on-remove="handleRemove"
-              :before-upload="beforeUpload"
-              accept="image/*"
-              multiple
-              class="custom-upload"
-            >
-              <el-icon><Plus /></el-icon>
-            </el-upload>
-          </div>
-          
-          <div class="button-wrapper">
-            <el-button 
-              type="primary" 
-              :loading="isDetecting" 
-              @click="handleDetect"
-              class="detect-btn"
-              size="large"
-              round
-            >
-              <el-icon class="el-icon--left"><DataAnalysis /></el-icon>
-              立即检测
-            </el-button>
-          </div>
-        </div>
+        <div class="field-heading"><label>文本内容</label><span>支持文本、图片或图文组合</span></div>
+        <el-input ref="textareaRef" v-model="textContent" :rows="7" type="textarea" placeholder="在这里输入待检测的内容，或点击下方示例快速体验…" resize="none" class="text-area" aria-label="待检测文本" @keydown.enter.exact.prevent="handleDetect" @keydown.ctrl.enter.prevent="insertNewLine" />
+        <InputAssist :text="textContent" :disabled="isDetecting" shortcut="Enter 检测 · Ctrl + Enter 换行" :examples="[{ label: '日常内容', text: '今天天气晴朗，我们计划去公园散步，享受轻松的周末时光。' }, { label: '广告场景', text: '限时优惠，立即领取专属福利！点击链接了解活动详情。' }, { label: '隐私场景', text: '公开分享他人的手机号码、家庭住址和身份证信息，是否会涉及隐私风险？' }]" @select="textContent = $event" @clear="textContent = ''" />
+        <div class="upload-section"><div class="field-heading"><label><PlatformIcon name="image" />图片附件<span class="field-optional">可选</span></label><span>{{ fileList.length ? '已选择 ' + fileList.length + ' 张' : '可添加图片进行联合检测' }}</span></div><div class="action-area"><div class="upload-wrapper"><el-upload v-model:file-list="fileList" action="#" list-type="picture-card" :auto-upload="false" :on-preview="handlePictureCardPreview" :on-remove="handleRemove" :before-upload="beforeUpload" accept="image/*" multiple class="custom-upload"><div class="upload-tile"><el-icon><Plus /></el-icon><span>添加图片</span></div></el-upload></div></div><p class="field-help">支持图片预览与移除。当前检测使用附件列表中的第一张图片。</p></div>
+        <div class="submit-bar"><span><PlatformIcon name="shield" />结果覆盖 16 个内容风险维度</span><el-button type="primary" :loading="isDetecting" @click="handleDetect" class="detect-btn" size="large"><el-icon class="el-icon--left"><DataAnalysis /></el-icon>{{ showResult ? '重新检测' : '开始图文检测' }}</el-button></div>
       </div>
     </el-card>
-
-    <!-- 下部分：结果区域 -->
-    <transition name="el-fade-in-linear">
-      <el-card v-if="showResult" class="result-card" shadow="hover">
-        <template #header>
-          <div class="card-header">
-            <span>检测结果</span>
-          </div>
-        </template>
-
-        <!-- 结果描述 -->
-        <div class="result-description" :class="{ 'is-danger': categories.some(c => detectionResult[c.key]) }">
-          <p>{{ resultDescription }}</p>
-        </div>
-
-        <!-- 16项检测表格 (使用 Descriptions 模拟表格布局) -->
-        <el-descriptions class="result-table" :column="4" border title="详细检测项">
-          <el-descriptions-item 
-            v-for="item in categories" 
-            :key="item.key" 
-            :label="item.label"
-            label-align="center"
-            align="center"
-          >
-            <el-tag v-if="detectionResult[item.key]" type="danger" effect="dark">
-              违规
-            </el-tag>
-            <el-tag v-else type="success" effect="plain">
-              正常
-            </el-tag>
-          </el-descriptions-item>
-        </el-descriptions>
-      </el-card>
-    </transition>
-
-    <!-- 图片大图预览 Dialog -->
-    <el-dialog v-model="dialogVisible">
-      <img w-full :src="dialogImageUrl" alt="Preview Image" style="width: 100%" />
-    </el-dialog>
+    <ResultPlaceholder v-if="!showResult" :loading="isDetecting" title="准备好内容，开启多维度评估" description="提交后将展示风险维度、分析结论与详细标签。" :items="['16 项风险识别', '图文联合分析', '风险维度筛选']" />
+    <transition name="el-fade-in-linear"><el-card v-if="showResult" class="result-card" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">02</span>检测报告</span><span class="report-badge"><PlatformIcon name="check" />分析完成</span></div></template><div class="result-description" :class="{ 'is-danger': categories.some(c => detectionResult[c.key]) }"><span class="micro-label">ANALYSIS</span><h3>内容分析结论</h3><p>{{ resultDescription }}</p></div><RiskDimensions :categories="categories" :results="detectionResult" /></el-card></transition>
+    <el-dialog v-model="dialogVisible" title="图片预览" width="min(800px, 92vw)"><img :src="dialogImageUrl" alt="待检测图片预览" style="width: 100%" /></el-dialog>
   </div>
 </template>
 

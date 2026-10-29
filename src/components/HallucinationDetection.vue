@@ -112,121 +112,22 @@ const copyOptimizedText = () => {
 </script>
 
 <template>
-  <div class="hallucination-container" :class="{ 'is-triggered': hasTriggeredDetection }">
+  <div class="hallucination-container enriched-detection" :class="{ 'is-triggered': hasTriggeredDetection }">
     <el-row :gutter="20" class="main-row">
-      <!-- 左侧：输入区域 -->
       <el-col :span="hasTriggeredDetection ? 12 : 24" class="left-col transition-col">
-        <!-- 初始问题卡片 -->
-        <el-card class="input-card top-card" shadow="hover" :class="{ 'is-shrunk': hasTriggeredDetection }">
-          <template #header>
-            <div class="card-header">
-              <span class="title"><el-icon><EditPen /></el-icon> 初始问题</span>
-            </div>
-          </template>
-          <div class="input-wrapper">
-            <el-input
-              ref="textareaRef"
-              v-model="initialProblem"
-              type="textarea"
-              :rows="hasTriggeredDetection ? 5 : 12"
-              placeholder="请输入初始问题... (Enter 立即生成并检测)"
-              resize="none"
-              class="custom-textarea"
-              @keydown.enter.exact.prevent="handleDetect"
-            />
-            <div class="button-area" v-if="!hasTriggeredDetection">
-              <el-button 
-                type="primary" 
-                size="large" 
-                :loading="isDetecting" 
-                @click="handleDetect" 
-                round
-                class="detect-btn"
-              >
-                <el-icon class="el-icon--left"><DataAnalysis /></el-icon>
-                幻觉检测
-              </el-button>
-            </div>
-          </div>
-        </el-card>
-
-        <!-- 初始结果响应卡片 (仅在触发后显示) -->
-        <el-card v-if="hasTriggeredDetection" class="input-card bottom-card" shadow="hover">
-          <template #header>
-            <div class="card-header">
-              <span class="title"><el-icon><DocumentChecked /></el-icon> 初始结果 (模型响应)</span>
-            </div>
-          </template>
-          <div class="input-wrapper">
-             <el-input
-              v-model="inputText"
-              type="textarea"
-              :rows="8"
-              readonly
-              resize="none"
-              class="custom-textarea readonly-textarea"
-            />
-          </div>
-        </el-card>
+        <el-card class="input-card top-card" shadow="never" :class="{ 'is-shrunk': hasTriggeredDetection }"><template #header><div class="card-header"><span class="title"><span class="panel-step">01</span>初始问题</span><span class="request-status" :class="{ busy: isDetecting }"><span></span>{{ isDetecting ? '分析中' : showResult ? '已生成报告' : '等待提交' }}</span></div></template><div class="input-wrapper"><div class="field-heading"><label>你希望模型回答什么？</label><span>输入一个完整的问题</span></div><el-input ref="textareaRef" v-model="initialProblem" type="textarea" :rows="hasTriggeredDetection ? 5 : 8" placeholder="输入你的问题，或使用下方示例开始评估…" resize="none" class="custom-textarea" aria-label="初始问题" @keydown.enter.exact.prevent="handleDetect" /><InputAssist :text="initialProblem" :disabled="isDetecting" shortcut="Enter 生成并检测" :examples="[{ label: '事实核验', text: '长城能否在月球上用肉眼看到？请说明原因。' }, { label: '知识问答', text: '水在不同海拔下的沸点会发生什么变化？' }, { label: '历史事实', text: '请介绍人类首次登月的时间、任务名称与参加人员。' }]" @select="initialProblem = $event" @clear="initialProblem = ''" /><div class="button-area"><el-button type="primary" size="large" :loading="isDetecting" @click="handleDetect" class="detect-btn"><el-icon class="el-icon--left"><DataAnalysis /></el-icon>{{ hasTriggeredDetection ? '重新检测' : '开始幻觉检测' }}</el-button></div></div></el-card>
+        <el-card v-if="hasTriggeredDetection" class="input-card bottom-card" shadow="never"><template #header><div class="card-header"><span class="title"><el-icon><DocumentChecked /></el-icon>模型原始回答</span><span class="quiet-badge">ORIGINAL RESPONSE</span></div></template><div class="input-wrapper"><el-input v-model="inputText" type="textarea" :rows="8" readonly resize="none" class="custom-textarea readonly-textarea" aria-label="模型原始回答" /><p class="field-help">保留原始响应，便于与右侧分析及修正建议对照阅读。</p></div></el-card>
       </el-col>
-
-      <!-- 右侧：结果区域 -->
       <el-col :span="12" class="right-col transition-col" v-if="hasTriggeredDetection">
-        <div v-if="isDetecting" class="loading-state">
-          <el-skeleton :rows="10" animated />
+        <div v-if="isDetecting" class="loading-state"><ResultPlaceholder loading description="模型正在生成响应并进行评估，分析完成后将展示报告。" :items="['原始回答', '幻觉指数', '修正建议']" icon="brain" /><el-skeleton :rows="6" animated /></div>
+        <div v-else-if="showResult" class="result-wrapper">
+          <el-card class="result-card analysis-card" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">02</span>检测分析</span><el-tag :type="result.hasHallucination ? 'danger' : 'success'" effect="plain">{{ result.hasHallucination ? '发现幻觉' : '内容可靠' }}</el-tag></div></template><div class="analysis-content"><div class="score-area"><el-progress type="dashboard" :percentage="result.score" :color="result.hasHallucination ? '#F56C6C' : '#67C23A'" :width="120"><template #default="{ percentage }"><span class="percentage-value">{{ percentage }}%</span><span class="percentage-label">幻觉指数</span></template></el-progress></div><div class="text-analysis"><span class="micro-label">MODEL ASSESSMENT</span><h4>分析结论</h4><p>{{ result.analysis }}</p></div></div></el-card>
+          <el-card class="result-card optimized-card" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">03</span>修正建议（去幻觉）</span><el-button type="primary" link @click="copyOptimizedText"><el-icon><CopyDocument /></el-icon>复制建议</el-button></div></template><div class="optimized-content-wrapper"><div class="optimized-content">{{ result.optimizedText }}</div></div></el-card>
         </div>
-
-        <div v-else class="result-wrapper">
-          <!-- 分析卡片 -->
-          <el-card class="result-card analysis-card" shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <span><el-icon><DataAnalysis /></el-icon> 检测分析</span>
-                <el-tag :type="result.hasHallucination ? 'danger' : 'success'" effect="dark">
-                  {{ result.hasHallucination ? '发现幻觉' : '内容可靠' }}
-                </el-tag>
-              </div>
-            </template>
-            <div class="analysis-content">
-              <div class="score-area">
-                <el-progress 
-                  type="dashboard" 
-                  :percentage="result.score" 
-                  :color="result.hasHallucination ? '#F56C6C' : '#67C23A'"
-                  :width="120"
-                >
-                  <template #default="{ percentage }">
-                    <span class="percentage-value">{{ percentage }}%</span>
-                    <span class="percentage-label">幻觉指数</span>
-                  </template>
-                </el-progress>
-              </div>
-              <div class="text-analysis">
-                <h4>分析结论：</h4>
-                <p>{{ result.analysis }}</p>
-              </div>
-            </div>
-          </el-card>
-
-          <!-- 修正建议卡片 -->
-          <el-card class="result-card optimized-card" shadow="hover">
-            <template #header>
-              <div class="card-header">
-                <span><el-icon><DocumentChecked /></el-icon> 修正建议 (去幻觉)</span>
-                <el-button type="primary" link @click="copyOptimizedText">
-                  <el-icon><CopyDocument /></el-icon> 复制
-                </el-button>
-              </div>
-            </template>
-            <div class="optimized-content-wrapper">
-              <div class="optimized-content">
-                {{ result.optimizedText }}
-              </div>
-            </div>
-          </el-card>
-        </div>
+        <ResultPlaceholder v-else title="暂未生成有效报告" description="本次请求未获取到结果，可在左侧调整问题后重新检测。" :items="['重新输入', '重新检测']" icon="brain" />
       </el-col>
     </el-row>
+    <ResultPlaceholder v-if="!hasTriggeredDetection" title="从一个问题开始，了解模型的可靠性" description="模型原始回答、检测分析和修正建议将在提交后展示。" :items="['原始回答对照', '幻觉指数', '修正建议']" icon="brain" />
   </div>
 </template>
 

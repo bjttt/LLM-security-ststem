@@ -1,38 +1,5 @@
 <template>
-  <el-card>
-    <template #header>
-      <div class="card-header">
-        <span>上传数据集重建知识库</span>
-      </div>
-    </template>
-    <el-upload
-      class="upload-area"
-      drag
-      action=""
-      :http-request="handleUpload"
-      :show-file-list="false"
-      accept=".csv"
-    >
-      <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-      <div class="el-upload__text">
-        拖拽 CSV 文件到此处，或者 <em>点击上传</em>
-      </div>
-      <template #tip>
-        <div class="el-upload__tip">
-          注意！上传新的 CSV 将清空原有知识库并重新构建索引。<br/>
-          请确保包含对应的内容与分类列。
-        </div>
-      </template>
-    </el-upload>
-    <el-form class="mt-4" label-width="120px">
-      <el-form-item label="内容列名">
-        <el-input v-model="textColumn" placeholder="默认: content" />
-      </el-form-item>
-      <el-form-item label="分类列名">
-        <el-input v-model="categoryColumn" placeholder="默认: category" />
-      </el-form-item>
-    </el-form>
-  </el-card>
+  <el-card class="knowledge-import" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">01</span>导入知识数据集</span><span class="quiet-badge">CSV IMPORT</span></div></template><div class="import-warning"><PlatformIcon name="help" /><div><h3>导入将重建当前知识库</h3><p>上传新的 CSV 会清空原有知识库并重建索引。请在选择文件前确认数据内容与列名配置。</p></div></div><div class="import-layout"><div class="import-main"><div class="field-heading"><label>列名映射</label><span>列名必须与 CSV 第一行一致</span></div><el-form class="column-mapping" label-position="top"><el-form-item label="正文内容列"><el-input v-model="textColumn" placeholder="默认: content" /><p class="field-help">该列将作为知识条目的正文内容</p></el-form-item><el-form-item label="知识分类列"><el-input v-model="categoryColumn" placeholder="默认: category" /><p class="field-help">用于区分法规、政策文件或违规案例</p></el-form-item></el-form><el-upload class="upload-area csv-upload-area" drag action="" :http-request="handleUpload" :show-file-list="false" accept=".csv"><span class="csv-file-symbol"><PlatformIcon name="upload" /></span><h3>将 CSV 数据集拖放到这里</h3><div class="el-upload__text">或 <em>点击选择本地文件</em></div><span class="csv-extension">.CSV</span><template #tip><div class="el-upload__tip">选择文件后会立即沿用现有导入流程上传并重建知识库。</div></template></el-upload></div><CsvGuide :text-column="textColumn" :category-column="categoryColumn" /></div><div class="import-checklist"><span><PlatformIcon name="check" />先配置列名</span><PlatformIcon name="chevron" /><span><PlatformIcon name="check" />确认重建数据</span><PlatformIcon name="chevron" /><span><PlatformIcon name="upload" />选择 CSV 文件</span></div></el-card>
 </template>
 
 <script setup>
