@@ -1,7 +1,9 @@
 <script setup>
 import { ref, reactive, nextTick } from 'vue'
-import { Plus, ZoomIn, Delete, UploadFilled, DataAnalysis, EditPen } from '@element-plus/icons-vue'
+import { Plus, DataAnalysis } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { detectMultimodal, riskCategories } from '../api/model'
+import MultimodalResults from './MultimodalResults.vue'
 
 // --- 输入区域状态 ---
 const textContent = ref('')
@@ -14,25 +16,8 @@ const isDetecting = ref(false)
 // --- 结果区域状态 ---
 const showResult = ref(false)
 const resultDescription = ref('')
-// 16个检测维度配置
-const categories = [
-  { key: 'porn', label: '涉黄' },
-  { key: 'politics', label: '涉政' },
-  { key: 'illegal', label: '违禁' },
-  { key: 'terrorism', label: '暴恐' },
-  { key: 'abusive', label: '谩骂' },
-  { key: 'advertising', label: '广告' },
-  { key: 'party_gov_leaders', label: '涉及党政机关及领导人' },
-  { key: 'hmt_sovereignty', label: '涉及港澳台和领土主权' },
-  { key: 'laws_regulation', label: '涉及法律法规' },
-  { key: 'ethnic_religion', label: '涉及民族宗教' },
-  { key: 'national_security', label: '涉及国家安全与核心机密' },
-  { key: 'international_relations', label: '涉及国际关系' },
-  { key: 'current_affairs', label: '涉及时政与社会生活' },
-  { key: 'sensitive_people_events', label: '涉及敏感人物与事件' },
-  { key: 'privacy_leak', label: '涉及个人隐私泄露' },
-  { key: 'historical_nihilism_fake', label: '涉及历史虚无主义与造谣' }
-]
+// 检测维度与模型输出字段共用配置。
+const categories = riskCategories
 
 // 存储检测结果（key: boolean）
 const detectionResult = reactive({})
@@ -80,6 +65,7 @@ const insertNewLine = () => {
 
 // --- 检测逻辑 ---
 const handleDetect = async () => {
+  if (isDetecting.value) return
   if (!textContent.value && fileList.value.length === 0) {
     ElMessage.warning('请输入文本或上传图片进行检测')
     return
@@ -89,48 +75,13 @@ const handleDetect = async () => {
   showResult.value = false
 
   try {
-    const formData = new FormData()
-    formData.append('text', textContent.value)
-    // 当前界面无直接输入图片URL的功能，故传空字符串，主要依托上传的 file
-    formData.append('imageUrls', '') 
-    
-    // 如果有上传文件，取第一个文件作为 file 参数发送
-    if (fileList.value.length > 0) {
-      formData.append('file', fileList.value[0].raw)
-    }
-    
-    formData.append('stream', false)
+    // Preserve the existing first-image behavior. Validation runs in the service,
+    // because el-upload does not call before-upload when auto-upload is false.
+    const data = await detectMultimodal(textContent.value, fileList.value[0]?.raw)
+    const labels = data.labels
 
-    const response = await fetch('/api/v1/moderation/multimodal/check', {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const res = await response.json()
-    
-    // 后端返回结构调整：
-    // code: number
-    // message: string (状态描述)
-    // data: {
-    //   labels: { ...16 keys... },
-    //   comment: string (检测分析)
-    // }
-    
-    let data = res.data || {}
-    if (typeof data === 'string') {
-      // 1. 去除 ```json 或 ``` 标记
-      let cleanedData = data.replace(/```json/g, '').replace(/```/g, '').trim()
-      data = JSON.parse(cleanedData)
-    }
-    const labels = data.labels || {}
-
-    // 更新检测结果状态
     categories.forEach(cat => {
-      // 后端返回 1 表示有该类违规，0 表示无
+      // 模型返回 1 表示有该类风险，0 表示无
       detectionResult[cat.key] = labels[cat.key] === 1
     })
 
@@ -141,7 +92,7 @@ const handleDetect = async () => {
 
   } catch (error) {
     console.error('Detection error:', error)
-    ElMessage.error('检测请求失败，请检查网络或后端服务')
+    ElMessage.error(error.message || '检测失败，请重试')
   } finally {
     isDetecting.value = false
   }
@@ -157,11 +108,12 @@ const handleDetect = async () => {
         <el-input ref="textareaRef" v-model="textContent" :rows="7" type="textarea" placeholder="在这里输入待检测的内容，或点击下方示例快速体验…" resize="none" class="text-area" aria-label="待检测文本" @keydown.enter.exact.prevent="handleDetect" @keydown.ctrl.enter.prevent="insertNewLine" />
         <InputAssist :text="textContent" :disabled="isDetecting" shortcut="Enter 检测 · Ctrl + Enter 换行" :examples="[{ label: '日常内容', text: '今天天气晴朗，我们计划去公园散步，享受轻松的周末时光。' }, { label: '广告场景', text: '限时优惠，立即领取专属福利！点击链接了解活动详情。' }, { label: '隐私场景', text: '公开分享他人的手机号码、家庭住址和身份证信息，是否会涉及隐私风险？' }]" @select="textContent = $event" @clear="textContent = ''" />
         <div class="upload-section"><div class="field-heading"><label><PlatformIcon name="image" />图片附件<span class="field-optional">可选</span></label><span>{{ fileList.length ? '已选择 ' + fileList.length + ' 张' : '可添加图片进行联合检测' }}</span></div><div class="action-area"><div class="upload-wrapper"><el-upload v-model:file-list="fileList" action="#" list-type="picture-card" :auto-upload="false" :on-preview="handlePictureCardPreview" :on-remove="handleRemove" :before-upload="beforeUpload" accept="image/*" multiple class="custom-upload"><div class="upload-tile"><el-icon><Plus /></el-icon><span>添加图片</span></div></el-upload></div></div><p class="field-help">支持图片预览与移除。当前检测使用附件列表中的第一张图片。</p></div>
-        <div class="submit-bar"><span><PlatformIcon name="shield" />结果覆盖 16 个内容风险维度</span><el-button type="primary" :loading="isDetecting" @click="handleDetect" class="detect-btn" size="large"><el-icon class="el-icon--left"><DataAnalysis /></el-icon>{{ showResult ? '重新检测' : '开始图文检测' }}</el-button></div>
+        <p class="field-help">AIGC检测由模型评估生成迹象，结果供复核参考，不能确证创作来源。</p>
+        <div class="submit-bar"><span><PlatformIcon name="shield" />结果覆盖 {{ categories.length }} 个检测维度，含 AIGC检测</span><el-button type="primary" :loading="isDetecting" @click="handleDetect" class="detect-btn" size="large"><el-icon class="el-icon--left"><DataAnalysis /></el-icon>{{ showResult ? '重新检测' : '开始图文检测' }}</el-button></div>
       </div>
     </el-card>
-    <ResultPlaceholder v-if="!showResult" :loading="isDetecting" title="准备好内容，开启多维度评估" description="提交后将展示风险维度、分析结论与详细标签。" :items="['16 项风险识别', '图文联合分析', '风险维度筛选']" />
-    <transition name="el-fade-in-linear"><el-card v-if="showResult" class="result-card" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">02</span>检测报告</span><span class="report-badge"><PlatformIcon name="check" />分析完成</span></div></template><div class="result-description" :class="{ 'is-danger': categories.some(c => detectionResult[c.key]) }"><span class="micro-label">ANALYSIS</span><h3>内容分析结论</h3><p>{{ resultDescription }}</p></div><RiskDimensions :categories="categories" :results="detectionResult" /></el-card></transition>
+    <ResultPlaceholder v-if="!showResult" :loading="isDetecting" title="准备好内容，开启多维度评估" description="提交后将展示风险维度、AIGC判断、分析结论与详细标签。" :items="[`${categories.length} 项检测维度`, '图文联合分析', 'AIGC检测']" />
+    <transition name="el-fade-in-linear"><el-card v-if="showResult" class="result-card" shadow="never"><template #header><div class="card-header"><span class="title"><span class="panel-step">02</span>检测报告</span><span class="report-badge"><PlatformIcon name="check" />分析完成</span></div></template><div class="result-description" :class="{ 'is-danger': categories.some(c => detectionResult[c.key]) }"><span class="micro-label">ANALYSIS</span><h3>内容分析结论</h3><p>{{ resultDescription }}</p></div><MultimodalResults :categories="categories" :results="detectionResult" /></el-card></transition>
     <el-dialog v-model="dialogVisible" title="图片预览" width="min(800px, 92vw)"><img :src="dialogImageUrl" alt="待检测图片预览" style="width: 100%" /></el-dialog>
   </div>
 </template>

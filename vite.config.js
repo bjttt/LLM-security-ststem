@@ -1,14 +1,16 @@
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import { modelGateway } from './server/model-gateway.js'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
     vueDevTools(),
+    modelGateway(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '')),
   ],
   resolve: {
     alias: {
@@ -28,4 +30,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

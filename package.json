@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "vite --host=localhost",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host=localhost",
+    "test": "node --test"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

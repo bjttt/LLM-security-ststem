@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { ConfigApi } from '../api/safety';
+import { getModelConfig } from '../api/model';
 
 export const useSystemStore = defineStore('system', () => {
   const llmConfigured = ref(false);
@@ -12,6 +13,18 @@ export const useSystemStore = defineStore('system', () => {
   const supportedRerankers = ref({});
   const violationTypes = ref([]);
   
+  const fetchModelConfig = async () => {
+    try {
+      const config = await getModelConfig();
+      llmConfigured.value = config.llm_configured;
+      currentModel.value = config.current_model;
+    } catch (error) {
+      llmConfigured.value = false;
+      console.error('加载模型配置失败', error);
+    }
+  };
+
+  // The legacy knowledge service still owns its model/retrieval configuration.
   const fetchConfigState = async () => {
     try {
       const res = await ConfigApi.getState();
@@ -37,6 +50,7 @@ export const useSystemStore = defineStore('system', () => {
     supportedEmbeddings,
     supportedRerankers,
     violationTypes,
-    fetchConfigState
+    fetchConfigState,
+    fetchModelConfig
   };
 });

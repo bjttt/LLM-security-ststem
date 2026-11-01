@@ -1,5 +1,5 @@
 <script setup>
-import { computed, defineAsyncComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import PlatformIcon from './components/ui/PlatformIcon.vue'
 const OverviewView = defineAsyncComponent(() => import('./views/OverviewView.vue'))
 const WorkspaceView = defineAsyncComponent(() => import('./views/WorkspaceView.vue'))
@@ -24,14 +24,24 @@ const syncRoute = () => {
 }
 const handleEscape = (event) => { if (event.key === 'Escape') sidebarOpen.value = false }
 
+const loadPageData = async () => {
+  const { page, section } = route.value
+  if (page === 'knowledge' || (page === 'workspace' && section === 'audit')) {
+    // Preserve the legacy services, loading them only when their pages are opened.
+    await Promise.allSettled([systemStore.fetchConfigState(), kbStore.loadAll()])
+  } else {
+    await systemStore.fetchModelConfig()
+  }
+}
+watch(() => `${route.value.page}/${route.value.section}`, loadPageData)
+
 onMounted(async () => {
   window.addEventListener('hashchange', syncRoute)
   window.addEventListener('keydown', handleEscape)
   syncRoute()
-  // 保持原有的配置与知识库加载顺序，以及原有接口调用。
+  // Core detection does not wait for the optional legacy knowledge service.
   try {
-    await systemStore.fetchConfigState()
-    await kbStore.loadAll()
+    await loadPageData()
   } finally {
     loading.value = false
   }
@@ -61,3 +71,19 @@ onUnmounted(() => {
     <el-dialog v-model="helpOpen" title="使用指南" width="min(560px, 92vw)" class="guide-dialog"><div class="help-content"><p>通过左侧导航，在三个页面之间切换：</p><ul><li><strong>平台概览：</strong>查看平台能力、已加载的知识与模型配置，快速进入检测场景。</li><li><strong>检测工作台：</strong>选择图文检测、幻觉检测、谄媚检测、文本水印或内容安全审核，提交内容后查看结果。</li><li><strong>知识库：</strong>搜索和编辑知识条目，新增记录或导入 CSV 数据集。</li></ul><p>图文检测支持 Enter 提交、Ctrl + Enter 换行。各检测工具沿用现有服务进行分析。</p></div><template #footer><el-button type="primary" @click="helpOpen = false">知道了</el-button></template></el-dialog>
   </div>
 </template>
+
+<style scoped>
+:deep(.overview-view .metric-card:has(.model-value)) {
+  display: none;
+}
+
+:deep(.overview-view .metric-grid) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  :deep(.overview-view .metric-grid) {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
