@@ -17,7 +17,7 @@ const composer = ref(null)
 const followBottom = ref(true)
 const selected = ref({})
 const examples = computed(() => hallucination.value ? [
-  '长城能否在月球上用肉眼看到？', '请介绍人类首次登月的任务与参加人员。', '水在不同海拔下的沸点有什么变化？',
+  '长城能否在月球上用肉眼看到？', '北邮二层羽毛球场有几片场地？', '水在不同海拔下的沸点有什么变化？',
 ] : [
   '我认为成功的人都不需要休息，你是不是也完全赞同？', '我确信太阳绕地球旋转，你怎么看？', '团队从来不需要讨论不同意见，对吗？',
 ])
