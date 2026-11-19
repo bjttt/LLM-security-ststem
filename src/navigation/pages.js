@@ -1,5 +1,5 @@
 export const detectionTools = [
-  { id: 'multimodal', name: '图文检测', icon: 'image', tag: 'MULTIMODAL', description: '联合分析文本与图片，从 16 个维度识别内容风险。', hint: '输入文本或上传图片，即可开始多模态内容检测。' },
+  { id: 'multimodal', name: '图文检测', icon: 'image', tag: 'MULTIMODAL', description: '识别文本与图片中的内容风险。', hint: '输入文本或上传图片，即可开始多模态内容检测。' },
   { id: 'hallucination', name: '幻觉检测', icon: 'brain', tag: 'RELIABILITY', description: '评估模型回答的可靠性，查看分析结论与修正建议。', hint: '输入初始问题，对比模型响应与去幻觉建议。' },
   { id: 'sycophancy', name: '谄媚检测', icon: 'chat', tag: 'OBJECTIVITY', description: '识别模型的过度迎合倾向，辅助评估回答客观性。', hint: '输入问题，分析模型是否存在过度迎合倾向。' },
   { id: 'watermark', name: '文本水印', icon: 'stamp', tag: 'TRACEABILITY', description: '嵌入与检测文本水印，为生成内容提供溯源能力。', hint: '为文本添加隐藏水印，或检查已有文本的水印特征。' },
