@@ -288,7 +288,7 @@ test('gateway rejects cross-site access, unsupported routes and invalid bodies',
   assert.equal(h.calls.length, 0)
 })
 
-const cleanLabels = () => Object.fromEntries(riskCategories.map(c => [c.key, 0]))
+const cleanLabels = () => ({ ...Object.fromEntries(riskCategories.map(c => [c.key, { detected: 0, children: Object.fromEntries(c.children.map(child => [child.key, 0])) }])), aigc: 0 })
 
 test('AIGC is evaluated in text-only, image-only and combined detection', async () => {
   const image = new Blob(['image'], { type: 'image/png' })
@@ -310,7 +310,7 @@ test('missing or invalid AIGC labels fail instead of appearing as a clean detect
   }
 })
 
-test('the rendered report includes AIGC as the seventeenth item without labeling it a violation', async () => {
+test('the rendered report preserves category results and separate AIGC without redundant headings', async () => {
   const server = await createServer({
     configFile: false,
     root: fileURLToPath(new URL('..', import.meta.url)),
@@ -327,7 +327,11 @@ test('the rendered report includes AIGC as the seventeenth item without labeling
         results: { ...cleanLabels(), aigc: detected },
       }) })
       const html = await renderToString(app)
-      assert.match(html, /<strong>17<\/strong>检测维度/)
+
+      for (const category of riskCategories) {
+        assert.ok(html.includes(category.label))
+        for (const child of category.children) assert.ok(html.includes(child.label))
+      }
       assert.match(html, /AIGC检测/)
       assert.ok(html.includes(detected ? '疑似 AI 生成' : '未发现明显生成迹象'))
       assert.ok(!html.includes('违规'))
@@ -338,12 +342,16 @@ test('the rendered report includes AIGC as the seventeenth item without labeling
 })
 
 test('multimodal sends image data and text to the vision model and normalizes labels', async () => {
-  const labels = { ...cleanLabels(), advertising: '1', privacy_leak: true }
+  const labels = cleanLabels()
+  labels.advertising.detected = '1'
+  labels.advertising.children.limited_time = true
+  labels.illegal.detected = true
+  labels.illegal.children.information_trade = '1'
   const h = harness([JSON.stringify({ labels, comment: 'analysis' })])
   const image = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' })
   const result = await detectMultimodal('text', image, h.dispatch)
-  assert.equal(result.labels.advertising, 1)
-  assert.equal(result.labels.privacy_leak, 1)
+  assert.equal(result.labels.advertising.detected, 1)
+  assert.equal(result.labels.illegal.children.information_trade, 1)
   assert.equal(h.calls[0].payload.model, 'mimo-v2.6-flash')
   assert.deepEqual(h.calls[0].payload.messages[1].content, [
     { type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } }, { type: 'text', text: 'text' },
@@ -367,4 +375,40 @@ test('invalid inputs fail before any paid call', async () => {
   await assert.rejects(imageToDataUrl(new Blob(['x'], { type: 'text/plain' })), /图片/)
   await assert.rejects(imageToDataUrl({ type: 'image/png', size: 10 * 1024 * 1024 + 1 }), /10MB/)
   assert.equal(h.calls.length, 0)
+})
+
+
+test('hierarchical moderation rejects missing, invalid and contradictory levels', async () => {
+  const missingChild = cleanLabels()
+  delete missingChild.porn.children.porn_resources
+  const missingParent = cleanLabels()
+  delete missingParent.porn.detected
+  const invalidChild = cleanLabels()
+  invalidChild.advertising.children.limited_time = 2
+  const contradictedParent = cleanLabels()
+  contradictedParent.illegal.children.drugs = 1
+  const contradictedChild = cleanLabels()
+  contradictedChild.abusive.detected = 1
+  for (const labels of [missingChild, missingParent, invalidChild, contradictedParent, contradictedChild]) {
+    const h = harness([JSON.stringify({ labels, comment: 'analysis' })])
+    await assert.rejects(detectMultimodal('text', undefined, h.dispatch), /标签不完整|标签不一致/)
+  }
+})
+
+test('multiple first and second level matches survive model parsing', async () => {
+  const labels = cleanLabels()
+  labels.advertising.detected = 1
+  labels.advertising.children.limited_time = 1
+  labels.advertising.children.absolute_claims = 1
+  labels.illegal.detected = 1
+  labels.illegal.children.information_trade = 1
+  labels.aigc = 1
+  const h = harness([JSON.stringify({ labels, comment: '广告：限时语句、极限词汇；违禁：信息贩卖。' })])
+  const result = await detectMultimodal('text', undefined, h.dispatch)
+  assert.deepEqual(result.labels, labels)
+  const prompt = h.calls[0].payload.messages[0].content
+  for (const category of riskCategories) {
+    assert.ok(prompt.includes(category.label))
+    for (const child of category.children) assert.ok(prompt.includes(child.label))
+  }
 })
