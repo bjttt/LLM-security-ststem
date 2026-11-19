@@ -1,0 +1,13 @@
+/* Shared foundation for the AI safety workspace. */
+:root { font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; color: #252b33; background: #f5f7f6; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; --accent: #4a7fe5; --muted: #818890; --line: #e6e9ec; --ink: #252b33; }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; line-height: 1.6; font-size: 14px; }
+h1, h2, h3, h4, p { margin: 0; }
+a { color: inherit; text-decoration: none; }
+button, input, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; }
+button:focus-visible, a:focus-visible { outline: 3px solid #6490c9; outline-offset: 4px; }
+::selection { background: #d0ddee; }
+.platform-icon { flex-shrink: 0; vertical-align: middle; }
+#app { min-height: 100vh; }
