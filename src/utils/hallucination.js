@@ -1,3 +1,4 @@
+import { locateQuote } from './textEvidence.js'
 // Resolve model annotations against the exact original answer. Never render
 // model-provided markup or trust model-provided character offsets.
 export function resolveSuspectSpans(answer, annotations) {
@@ -7,14 +8,9 @@ export function resolveSuspectSpans(answer, annotations) {
     if (!item || typeof item.text !== 'string' || !item.text || typeof item.reason !== 'string' || !item.reason.trim()) continue
     const occurrence = item.occurrence ?? 1
     if (!Number.isInteger(occurrence) || occurrence < 1 || occurrence > 100) continue
-    let start = -1, offset = 0
-    for (let index = 0; index < occurrence; index++) {
-      start = answer.indexOf(item.text, offset)
-      if (start === -1) break
-      offset = start + item.text.length
-    }
-    if (start === -1) continue
-    const end = start + item.text.length
+    const position = locateQuote(answer, item.text, occurrence)
+    if (!position) continue
+    const { start, end } = position
     if (spans.some(span => span.start === start && span.end === end && span.reason === item.reason.trim())) continue
     spans.push({ start, end, text: item.text, reason: item.reason.trim() })
   }

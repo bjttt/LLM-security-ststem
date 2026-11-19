@@ -47,7 +47,7 @@ export function createModelMiddleware(env, fetchImpl = fetch) {
     }
     if (path !== '/model-api/chat/completions') return send(res, 404, { message: '接口不存在' })
     if (req.method !== 'POST') return send(res, 405, { message: '请使用 POST 请求' })
-    if (!apiKey) return send(res, 503, { message: '请在 demov2/.env.local 配置 MIMO_API_KEY，然后重启前端' })
+    if (!apiKey) return send(res, 503, { message: '请在项目根目录的 .env.local 配置 MIMO_API_KEY，然后重启前端' })
 
     const disconnected = new AbortController()
     const onClose = () => disconnected.abort()
