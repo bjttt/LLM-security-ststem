@@ -4,6 +4,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { modelGateway } from './server/model-gateway.js'
+import { guardAgent } from './server/guard-agent.js'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -11,6 +12,7 @@ export default defineConfig(({ mode }) => ({
     vue(),
     vueDevTools(),
     modelGateway(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '')),
+    guardAgent(loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), '')),
   ],
   resolve: {
     alias: {

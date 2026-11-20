@@ -60,7 +60,7 @@ async function consumeAnswerStream(response, onChunk) {
   return { content }
 }
 
-export async function requestModelChat(messages, model, fetchImpl, { maxTokens = 4096, onChunk, signal } = {}) {
+export async function requestModelChat(messages, model, fetchImpl = fetch, { maxTokens = 4096, onChunk, signal } = {}) {
   const data = await request('chat/completions', {
     signal, method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messages, model, stream: Boolean(onChunk), max_completion_tokens: maxTokens }),
